@@ -3,6 +3,7 @@ import sys
 import time
 import json
 import cStringIO
+import mimetypes
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -87,12 +88,12 @@ class DoxieAutomator(SingleInstance):
         counter = 1
         for file in files:
 
-            filename = self.process_filename(file, 'pdf', counter, len(files))
-            image = self.retrieve_image(file)
-
+            request = self.retrieve_image(file)
+            filename = self.process_filename(file, request["extension"], counter, len(files))
+            
             retrieve_successful = False
             try:
-                retrieve_successful = self.store_file(filename, image)
+                retrieve_successful = self.store_file(filename, request["content"])
                 
             except IOError as e:
                 self.log(u"I/O error({0}) on {1}: {2}".format(e.errno, filename, e.strerror))
@@ -113,23 +114,31 @@ class DoxieAutomator(SingleInstance):
             r = requests.get(url, stream=True)
 
         r.raw.decode_content = True
-
+        content_type=r.headers['content-type']
+        extension = mimetypes.guess_extension(content_type)
+        if extension == '.jpe': extension = '.jpeg'
+        output ={
+            "extension":extension,
+            "content":r.raw
+        }
+        return output
+    
         #If the image file on Doxie is .PDF, PIL doesn't process it properly.
         #A workaround is to dump the http request content into a cStriongIO,
         #the advantage is that it can be reused without having to make
         #another requests to Doxie. This way if errors are thrown we can try
         #again with a different method.
 
-        csi = cStringIO.StringIO()
-        csi.write(r.raw.read())
-        csi.seek(0)#rewind
-        try:
-            im = Image.open(csi)
-        except IOError:
-            self.log('%s not a .jpg file. Probably a .pdf file.'%(url))
-            csi.seek(0)#rewind
-            return csi
-        return im
+        # csi = cStringIO.StringIO()
+        # csi.write(r.raw.read())
+        # csi.seek(0)#rewind
+        # try:
+        #     im = Image.open(csi)
+        # except IOError:
+        #     self.log('%s not a .jpg file. Probably a .pdf file.'%(url))
+        #     csi.seek(0)#rewind
+        #     return csi
+        # return im
 
     
 
@@ -137,8 +146,8 @@ class DoxieAutomator(SingleInstance):
         timestr = time.strftime("%Y-%m-%d_%H-%M-%S")
 
         if total > 1:
-            return u'%s-%s.%s'%(timestr, counter, filetype)
-        return u'%s.%s'%(timestr, filetype)
+            return u'%s-%s%s'%(timestr, counter, filetype)
+        return u'%s%s'%(timestr, filetype)
 
     def store_file(self, filename, image):
 
@@ -152,20 +161,19 @@ class DoxieAutomator(SingleInstance):
         image_path = u'%s/%s'%(doxie_file_folder, filename)
         self.log('Saving new scan to %s'%(image_path))
         
-        # At this point image is either a PIL.Image, or just a raw
-        # IO object
+        # # At this point image is either a PIL.Image, or just a raw
+        # # IO object
         
-        try:
-            image.convert('RGB').save(image_path, "PDF", Quality = 100)
-        except AttributeError:
-            image.seek(0)#rewind
-            with open(image_path,'w') as destination:
-                destination.write(image.read())
-
+        # try:
+        #     image.convert('RGB').save(image_path, "PDF", Quality = 100)
+        # except AttributeError:
+        #     image.seek(0)#rewind
+        with open(image_path,'w') as destination:
+            destination.write(image.read())
         return True
 
     def delete_original(self, original):
 
         self.log('Clearing %s from Doxie.'%(original))
         r = requests.delete(original)
-        
+        #self.log('doing-nothing')
