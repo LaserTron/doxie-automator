@@ -113,3 +113,10 @@ ENV/
 *.PDF
 *.psd
 *.PSD
+*.sh
+
+bin/
+
+include/
+
+pip-selfcheck\.json
