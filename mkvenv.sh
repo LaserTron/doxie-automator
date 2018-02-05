@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # This script should be run in the base directory and sets up
-# the virtual environment. This is archlinux-specific
+# the virtual environment for doxie-automator. This is archlinux-specific
 
 virtualenv -p /usr/bin/python2.7 .
-sh activateSource.sh
+source bin/activate
 pip2 install -r requirements.txt
